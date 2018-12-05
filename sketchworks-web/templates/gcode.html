@@ -1,0 +1,135 @@
+{% extends "global.html" %}
+
+{% block gcode_tab %}class="active"{% endblock %}
+
+{% block content %}
+    <h1>GCode Input</h1>
+    <form id="gcode-form">
+        <p>
+            <label for="saved_settings">Saved Settings</label>
+            <select id="saved_settings" data-bind="options: savedSettings, optionsText: 'filePath', value: selectedSetting"></select>
+        </p>
+        <p>
+            <label for="file_path">File Path</label><br/>
+            <input id="file_path" type="text" data-bind="value: selectedSetting().filePath" style="width: 100%;"/>
+        </p>
+        <p>
+            <label for="scale">Scale</label><br/>
+            <input id="scale" type="text" data-bind="value: selectedSetting().scale" />
+        </p>
+        <p>
+            <label for="x-offset">X Offset</label><br/>
+            <input id="x-offset" type="text" data-bind="value: selectedSetting().xOffset" />
+        </p>
+        <p>
+            <label for="y-offset">Y Offset</label><br/>
+            <input id="y-offset" type="text" data-bind="value: selectedSetting().yOffset" />
+        </p>
+        <p>
+            <label for="preview">Preview Only?</label><br/>
+            <input id="preview" type="checkbox" data-bind="checked: preview" />
+        </p>
+        <button type='submit' data-bind="click: submit, enable: !working()">Submit</button>
+        <span data-bind="visible: working()">
+            WORKING...
+        </span>
+        <button data-bind="click: saveSettings">Save</button>
+        <button data-bind="click: deleteSetting">Delete</button>
+        <button data-bind="click: estimate">Estimate</button>
+        <br/>
+        <span>Estimated Time: <span data-bind="text: estimatedMinutes"></span> min</span>
+    </form>
+    <script type="text/javascript">
+        function GCodeViewModel() {
+            var self = this;
+            self.preview = ko.observable(false);
+            self.working = ko.observable(false);
+            self.savedSettings = ko.observableArray([
+                new SketchSettings({filePath: '', scale: 1.0, xOffset: 0.0, yOffset: 0.0})
+            ]);
+            self.selectedSetting = ko.observable(self.savedSettings()['']);
+            self.estimatedSeconds = ko.observable(0);
+            self.estimatedMinutes = ko.computed(function() {
+                return Math.round(self.estimatedSeconds() * 100 / 60) / 100.0;
+            });
+
+            self.saveSettings = function() {
+                var savedSettingsJson = {};
+                var hasBlank = false;
+                ko.utils.arrayForEach(self.savedSettings(), function (item) {
+                    if(item.filePath() != '') {
+                        savedSettingsJson[item.filePath()] = item.toDict();
+                    }
+                    else {
+                        hasBlank = true;
+                    }
+                });
+                localStorage.setItem('saved_gcode_settings', JSON.stringify(savedSettingsJson));
+                if(!hasBlank) {
+                    self.savedSettings.push(new SketchSettings({filePath: '', scale: 1.0, xOffset: 0.0, yOffset: 0.0}));
+                }
+            };
+
+            self.deleteSetting = function() {
+                self.savedSettings.remove(self.selectedSetting());
+                self.saveSettings();
+            };
+
+            self.estimate = function() {
+                $.ajax({
+                    type: 'POST',
+                    async: false,
+                    url: '/gcode/estimate/',
+                    data: {
+                        file_path: self.selectedSetting().filePath(),
+                        scale: self.selectedSetting().scale(),
+                        x_offset: self.selectedSetting().xOffset(),
+                        y_offset: self.selectedSetting().yOffset()
+                    },
+                    success: function(data) {
+                        self.estimatedSeconds(data);
+                    },
+                    error: function() {
+                        alert("Error! Check your filename?")
+                    }
+                });
+            };
+
+            self.submit = function() {
+                self.working(true);
+                self.estimate();
+
+                $.ajax({
+                    type: 'POST',
+                    url: '/gcode/',
+                    data: {
+                        file_path: self.selectedSetting().filePath(),
+                        preview: self.preview(),
+                        scale: self.selectedSetting().scale(),
+                        x_offset: self.selectedSetting().xOffset(),
+                        y_offset: self.selectedSetting().yOffset()
+                    },
+                    error: function() {
+                        alert("Error! Check your filename?")
+                    },
+                    complete: function() {
+                        self.working(false);
+                        queueFlush();
+                    }
+                });
+            };
+
+            self.init = function() {
+                var savedSettingsJson = localStorage.getItem('saved_gcode_settings');
+                if(savedSettingsJson) {
+                    $.each(JSON.parse(savedSettingsJson), function(key, item) {
+                        self.savedSettings.push(new SketchSettings(item));
+                    });
+                }
+            };
+            self.init();
+        }
+        var gcodeViewModel = new GCodeViewModel();
+        ko.applyBindings(gcodeViewModel, document.getElementById("gcode-form"));
+    </script>
+{% endblock %}

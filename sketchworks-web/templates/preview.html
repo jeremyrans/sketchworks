@@ -1,0 +1,116 @@
+<h1>Preview ({{max_x - zero_offset_x}} x {{max_y}})</h1>
+<form name="previewForm" id="preview-form">
+    <p>
+        <canvas id="plotterCanvas" width="{{ max_x - zero_offset_x }}" height="{{ max_y }}" style="border: 1px solid #000; max-height: 100%; max-width: 100%;"></canvas><br/>
+        <input type="button" onclick="clearCanvas()" value="Clear"/>
+    </p>
+    <label for="outputtext">Raw data stream:</label>
+    <p><textarea id="outputtext" name="outputtext" rows="6" style="width: 100%;"></textarea></p>
+</form>
+
+<script language="javascript" type="text/javascript">
+    var SocketClient = function() {
+        var self = this;
+        self.websocketHost = "{{ websocket_host }}";
+        self.x = ko.observable(0);
+        self.y = ko.observable(0);
+        self.z = ko.observable(1);
+
+        self.init = function() {
+            self.doConnect();
+            window.addEventListener("unload", self.doDisconnect);
+        };
+
+        self.doConnect = function() {
+            self.websocket = new WebSocket(self.websocketHost);
+            self.websocket.onopen = function (evt) {
+                self.onOpen(evt)
+            };
+            self.websocket.onclose = function (evt) {
+                self.onClose(evt)
+            };
+            self.websocket.onmessage = function (evt) {
+                self.onMessage(evt)
+            };
+            self.websocket.onerror = function (evt) {
+                self.onError(evt)
+            };
+        };
+
+        self.onOpen = function(evt) {
+            self.writeToScreen("connected\n");
+            self.doSend("STATUS");
+            var c = document.getElementById("plotterCanvas");
+            self.canvas = c.getContext("2d");
+            self.canvas.beginPath();
+            self.canvas.moveTo(self.x(), self.y());
+        };
+
+        self.onClose = function(evt) {
+            self.writeToScreen("disconnected\n");
+        };
+
+        self.onMessage = function(evt) {
+            self.plot(evt.data);
+            self.writeToScreen(evt.data + "\n");
+        };
+
+        self.onError = function(evt) {
+            self.writeToScreen('error: ' + evt.data + '\n');
+            self.websocket.close();
+        };
+
+        self.doSend = function(message) {
+            self.websocket.send(message);
+        };
+
+        self.plot = function(coordinateString) {
+            var coordinates = [];
+            try {
+                coordinates = JSON.parse(coordinateString);
+            }
+            catch(e) {
+                return;
+            }
+            ko.utils.arrayForEach(coordinates, function(coordinate) {
+                if(coordinate.z < 1 && self.z() < 1) {
+                    self.canvas.lineTo(coordinate.x, coordinate.y);
+                }
+                else {
+                    self.canvas.moveTo(coordinate.x, coordinate.y);
+                }
+                self.x(coordinate.x);
+                self.y(coordinate.y);
+                self.z(coordinate.z);
+            });
+            self.canvas.stroke();
+        };
+
+        self.writeToScreen = function(message) {
+            document.previewForm.outputtext.value += message;
+            document.previewForm.outputtext.scrollTop = document.previewForm.outputtext.scrollHeight;
+        };
+
+        self.doDisconnect = function() {
+            $.ajax({
+                url: '/disconnect-socket/',
+                type: 'GET',
+                async: false,  // this is called on unload, need it to finish
+                success: function() {
+                    self.websocket.close();
+                }
+            });
+        };
+    };
+
+    function clearCanvas() {
+        var canvas = document.getElementById("plotterCanvas");
+        var ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+    }
+    var socketClient = new SocketClient();
+    window.addEventListener("load", socketClient.init, false);
+
+    ko.applyBindings(socketClient, document.getElementById("coordinates"));
+</script>

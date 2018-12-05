@@ -1,0 +1,91 @@
+{% extends "global.html" %}
+
+{% block interactive_tab %}class="active"{% endblock %}
+
+{% block content %}
+    <h1>Interactive Mode</h1>
+
+    <table id="interactive-controls">
+        <tr>
+            <td></td><td>&nbsp;&nbsp;<a href="#" data-bind="click: yDown">^</a>&nbsp;&nbsp;</td><td></td><td><a href="#" data-bind="click: zUp">Z+</a></td>
+        </tr>
+        <tr>
+            <td><a href="#" data-bind="click: xDown"><</a></td><td></td><td><a href="#" data-bind="click: xUp">></a></td><td></td>
+        </tr>
+        <tr>
+            <td></td><td>&nbsp;&nbsp;<a href="#" data-bind="click: yUp">v</a>&nbsp;&nbsp;</td><td></td><td><a href="#" data-bind="click: zDown">Z-</a></td>
+        </tr>
+    </table>
+
+    <script>
+        function InteractiveViewModel() {
+            var self = this;
+            self.submitDelta = function(coord, delta) {
+                var payload = {};
+                payload[coord] = delta;
+                $.ajax({
+                    type: 'POST',
+                    url: '/interactive/',
+                    data: payload,
+                    dataType: 'json'
+                });
+                queueFlush();
+            };
+
+            self.xUp = function() {
+                self.submitDelta('x', 1);
+            };
+
+            self.xDown = function() {
+                self.submitDelta('x', -1);
+            };
+
+            self.yUp = function() {
+                self.submitDelta('y', 1);
+            };
+
+            self.yDown = function() {
+                self.submitDelta('y', -1);
+            };
+
+            self.zUp = function() {
+                self.submitDelta('z', 1);
+            };
+
+            self.zDown = function() {
+                self.submitDelta('z', -1);
+            };
+
+            self.keyPressed = function(e) {
+                e = e || window.event;
+                switch(e.keyCode) {
+                    case 38:
+                        self.yDown();
+                        break;
+                    case 40:
+                        self.yUp();
+                        break;
+                    case 37:
+                        self.xDown();
+                        break;
+                    case 39:
+                        self.xUp();
+                        break;
+                    case 33:
+                        self.zUp();
+                        break;
+                    case 34:
+                        self.zDown();
+                        break;
+                }
+            };
+
+            self.init = function() {
+                document.addEventListener('keydown', self.keyPressed);
+            };
+            self.init();
+        }
+        var interactiveViewModel = new InteractiveViewModel();
+        ko.applyBindings(interactiveViewModel, document.getElementById('interactive-controls'));
+    </script>
+{% endblock %}

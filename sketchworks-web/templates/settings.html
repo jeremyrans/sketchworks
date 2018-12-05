@@ -1,0 +1,17 @@
+{% extends "global.html" %}
+
+{% block settings_tab %}class="active"{% endblock %}
+
+{% block content %}
+    <h1>Settings</h1>
+    <form method='POST' id='create-event-form'>
+        {{ forms.form_field(settings_form.max_x, with_label=True) }}
+        {{ forms.form_field(settings_form.max_y, with_label=True) }}
+        {{ forms.form_field(settings_form.bobbin_radius, with_label=True) }}
+        {{ forms.form_field(settings_form.offset_x, with_label=True) }}
+        {{ forms.form_field(settings_form.offset_y, with_label=True) }}
+        {{ forms.form_field(settings_form.speed, with_label=True) }}
+        {{ forms.form_field(settings_form.port, with_label=True) }}
+        {{ forms.form_field(settings_form.submit, class_="btn btn-primary") }}
+    </form>
+{% endblock %}
